@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import pandas as pd
 import gpxpy
 import numpy as np
@@ -7,14 +6,7 @@ from haversine import Unit, haversine_vector
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
  
-
-@dataclass
-class GPXData:
-    gpx: gpxpy.gpx.GPX
-    df: pd.DataFrame
-    stats: dict = None
-    locations: pd.DataFrame = None
-    mean_slopes : pd.DataFrame = None
+from route import GPXData
 
 def open_gpx(file: str) -> GPXData:
     """Parse GPX and return gpx object."""
@@ -164,6 +156,41 @@ def get_location(route: GPXData, precision: int = 10000) -> pd.DataFrame:
     route.locations = pd.DataFrame(locations)
     return route.locations
 
+def apply_slope_smoothing(df, target_meters: int = 100):
+    """
+    Smooths the slope (grade) data in a DataFrame by applying a rolling mean.
+    This function calculates a rolling average for the "grade" column in the 
+    provided DataFrame to smooth out variations in slope data. The size of the 
+    rolling window is determined based on the target distance in meters and 
+    the distance per data point.
+    Args:
+        df (pandas.DataFrame): The input DataFrame containing at least the 
+            columns "distance" (cumulative distance) and "grade" (slope values).
+        target_meters (int, optional): The target distance in meters over which 
+            to smooth the slope data. Defaults to 300 meters.
+    Returns:
+        pandas.DataFrame: The input DataFrame with an additional column 
+        "plot_grade" containing the smoothed slope values.
+    Notes:
+        - If the calculated distance per point is zero, the function returns 
+          the original DataFrame without modifications.
+        - The rolling window size is adjusted to ensure it is at least 3 and 
+          always an odd number for proper centering.
+    """
+    meters_per_point = df["distance"].iloc[-1] / len(df)
+    # Avoid a window that is too large or too small
+    if meters_per_point == 0:
+        return df  # Cannot calculate
+    window = max(3, int(target_meters / meters_per_point))
+    # Ensure the window is an odd number for clear centering
+    if window % 2 == 0:
+        window += 1
+
+    df["plot_grade"] = (
+        df["grade"].rolling(window=window, center=True, min_periods=1).mean()
+    )
+    return df
+
 def get_mean_grade(route: GPXData, precision: int = 1000) -> pd.DataFrame:
     """
     Creates a DataFrame with the mean grade for each segment of a specified distance (default 1km).
@@ -199,57 +226,22 @@ def get_mean_grade(route: GPXData, precision: int = 1000) -> pd.DataFrame:
     route.mean_slopes = pd.DataFrame(segments)
     return route.mean_slopes
 
-def detect_climbs_from_gpx(route: GPXData, min_slope=2.0, min_climb_length=1000,
-                            precision=100, plateau_slope=0, plateau_max_length=1000):
-    """
-    Detect climbs from parsed GPX data with plateau tolerance.
-    
-    plateau_slope: slope (%) below which section is considered a plateau
-    plateau_max_length: max length in meters to still consider plateau as part of climb
-    """
-    if route.df.empty:
-        raise ValueError("Route dataframe is empty.")
-    
-    slopes_df = get_mean_grade(route, precision=precision)
-
-    # Mark climbing segments
-    slopes_df["is_climb"] = slopes_df["mean_grade"] > min_slope
-
-    # Handle plateaus
-    segment_length_m = precision
-    for i in range(1, len(slopes_df) - 1):
-        if not slopes_df.loc[i, "is_climb"]:
-            if abs(slopes_df.loc[i, "mean_grade"]) <= plateau_slope:
-                # Check if previous and next are climbs
-                if slopes_df.loc[i - 1, "is_climb"] and slopes_df.loc[i + 1, "is_climb"]:
-                    # Check total plateau stretch length
-                    plateau_len = 0
-                    j = i
-                    while j < len(slopes_df) and not slopes_df.loc[j, "is_climb"] \
-                          and abs(slopes_df.loc[j, "mean_grade"]) <= plateau_slope:
-                        plateau_len += segment_length_m
-                        j += 1
-                    if plateau_len <= plateau_max_length:
-                        slopes_df.loc[i:j, "is_climb"] = True
-
-    # Group consecutive climb segments
-    slopes_df["climb_group"] = (slopes_df["is_climb"] != slopes_df["is_climb"].shift()).cumsum()
-
-    # Extract climbs
-    climbs = []
-    for _, group in slopes_df.groupby("climb_group"):
-        if group["is_climb"].iloc[0]:
-            length_m = (group["end_distance_km"].iloc[-1] - group["start_distance_km"].iloc[0]) * 1000
-            if length_m >= min_climb_length:
-                climbs.append({
-                    "start_km": group["start_distance_km"].iloc[0],
-                    "end_km": group["end_distance_km"].iloc[-1],
-                    "length_km": length_m / 1000,
-                    "avg_slope": group["mean_grade"].mean()
-                })
-
-    return pd.DataFrame(climbs)
-
+# def find_climbs(df: pd.DataFrame, min_grade: float = 3.0, min_length: float = 500.0) -> pd.DataFrame:
+#     """
+#     Identify climbs as segments where grade > min_grade for at least min_length meters.
+#     Returns a DataFrame with start/end indices, distance, elevation gain, and average grade.
+#     """
+#     df["is_climb"] = (df["grade"] > min_grade) & (df["distance"].diff() > 0)
+#     df["climb_id"] = (df["is_climb"].diff() != 0).cumsum()
+#     climbs = df[df["is_climb"]].groupby("climb_id").agg(
+#         start_idx=("distance", "first"),
+#         end_idx=("distance", "last"),
+#         length=("distance", "max"),
+#         gain=("ele", lambda x: x.iloc[-1] - x.iloc[0]),
+#         avg_grade=("grade", "mean"),
+#     )
+#     climbs = climbs[(climbs["length"] >= min_length) & (climbs["gain"] > 0)]
+#     return climbs.reset_index(drop=True)
 
 
 if __name__ == "__main__":
@@ -264,7 +256,8 @@ if __name__ == "__main__":
     slopes = get_mean_grade(route, precision=1000)
     
     route.locations = locations
-    route.mean_slopes = slopes
+    # route.mean_slopes = slopes
 
-    climbs = detect_climbs_from_gpx(route, 1.5)
+    # climbs = find_climbs(route.df)
+
     print("ok")
