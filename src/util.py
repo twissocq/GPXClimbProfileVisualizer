@@ -177,3 +177,36 @@ def plot_climb_segment(trackDf_merge, placesDf, segment_start, segment_end, anno
                 ha='center', fontsize=12, color='black')
 
     return fig
+
+
+def getcolor(grade:int) -> str:
+    """Return a color based on the slope grade in # format."""
+    match grade:
+        case _ if -2 <= grade < 2:
+            return "#FFFFFF"  # white
+        case _ if 2 <= grade < 4:
+            return "#75f60c"  # green
+        case _ if 4 <= grade < 6:
+            return "#00a0ff"  # blue
+        case _ if 6 <= grade < 8:
+            return "#ffd300"  # yellow
+        case _ if 8 <= grade < 10:
+            return "#ee0000"  # red
+        case _ if 10 <= grade < 12:
+            return "#800080"  # purple
+        case _ if grade >= 12:
+            return "#444444"  # black
+        # case _ if -4 <= grade < -2:
+        #     return "#ADD8E6"  # light blue
+        # case _ if -10 <= grade < -4:
+        #     return "#87CEEB"  # sky blue
+        # case _ if grade < -10:
+        #     return "#4682B4"  # steel blue
+        case _ if -4 <= grade < -2:
+            return "#F5F5DC"  # beige
+        case _ if -10 <= grade < -4:
+            return "#FFE4C4"  # bisque
+        case _ if grade < -10:
+            return "#CAA473"  # burlywood
+
+        
