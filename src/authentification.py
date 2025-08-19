@@ -8,8 +8,10 @@ from garminconnect import (
 def garmin_auth():
     st.subheader("🔑 Authentification Garmin Connect")
 
-    login = st.text_input("📧 Identifiant Garmin")
-    password = st.text_input("🔒 Mot de passe", type="password")
+    with st.form("auth_form"):
+        login = st.text_input("📧 Identifiant Garmin")
+        password = st.text_input("🔒 Mot de passe", type="password")
+        st.form_submit_button("Se connecter")
 
     if st.button("Se connecter"):
         try:
@@ -19,7 +21,7 @@ def garmin_auth():
             # Sauvegarder la session si besoin
             st.session_state["garmin"] = garmin
             
-            st.success(f"Bienvenue {garmin.display_name} ✅")
+            st.success(f"Bienvenue {garmin.get_full_name()} ✅")
 
         except GarminConnectAuthenticationError:
             st.error("❌ Échec de l'authentification (login/mot de passe incorrect)")
@@ -27,3 +29,11 @@ def garmin_auth():
             st.error("🌐 Impossible de se connecter à Garmin Connect (problème réseau ?)")
         except Exception as e:
             st.error(f"⚠️ Erreur inattendue : {e}")
+
+def garmin_logout():
+    """Déconnecte l'utilisateur Garmin et supprime la session."""
+    if "garmin" in st.session_state:
+        del st.session_state["garmin"]
+        st.success("✅ Déconnecté de Garmin Connect")
+    else:
+        st.info("ℹ️ Aucune session Garmin active")
