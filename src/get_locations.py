@@ -68,7 +68,7 @@ def get_indexes_at_intervals(df, interval=1000):
         current_distance += interval
     return indexes
 
-def add_location(route:GPXData) -> pd.DataFrame:
+def add_location(route:GPXData, interval = 10000) -> pd.DataFrame:
     """
     Adds location information to the DataFrame of a given route.
     This function updates the `route.df` DataFrame by adding a "location" column
@@ -96,7 +96,7 @@ def add_location(route:GPXData) -> pd.DataFrame:
     if df.empty:
         raise ValueError("The route DataFrame is empty.")
 
-    indexes = get_indexes_at_intervals(df, interval=10000)
+    indexes = get_indexes_at_intervals(df, interval=interval)
     df["location"] = None
     for i in indexes:
         df.at[i, "location"] = getLocationFromCoords(df.at[i, "lat"], df.at[i, "lon"])
