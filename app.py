@@ -1,102 +1,145 @@
-import streamlit as st
-import matplotlib.pyplot as plt
-import folium
-from folium import Popup, PolyLine
-import gpxpy
-from streamlit_folium import st_folium
-import altair as alt
 import pandas as pd
+import numpy as np
+import climb_detector as climb_detector
+import get_locations as locator
+import parser as parser
+import plotter as plotter
+import util as util
 
-import src.util as util
-import src.gpx_utils as gpx_utils
+import streamlit as st
+from streamlit_folium import st_folium
 
-@st.cache_data
-def load_gpx_data(gpx_content):
-    gpx = gpxpy.parse(gpx_content)
-    return gpx_utils.parse_gpx(gpx)
+st.set_page_config(layout="wide", page_title="GPX Analyzer 📍")
 
+# ---- Paramètres par défaut ----
+DEFAULT_PARAMS = {
+    "max_pause_length_m": 200,
+    "max_pause_descent_m": 10,
+    "start_threshold_slope": 2.0
+}
+localisation_name_precision = 10000
 st.title("GPX Climb Analyzer")
 
-uploaded_gpx = st.file_uploader("Upload your GPX file", type=["gpx"])
+tab_params, tab_analysis = st.tabs(["⚙️ Paramètres avancés", "📈 Analyse"])
+with tab_params:
+    st.subheader("Réglage des paramètres")
 
-if uploaded_gpx is not None:
-    try:
-        # Lecture et parsing en cache
-        track_df, slopes_df, track_df_merge, places_df = load_gpx_data(uploaded_gpx)
-        st.success(f"File `{uploaded_gpx.name}` loaded successfully!")
+    advanced_mode = st.checkbox("Activer le mode avancé", value=False, key="advanced_mode")
 
-        # (Ici tu peux afficher des stats ou faire tes plots)
-        # st.write(track_df.head())
+    if advanced_mode:
 
-    except Exception as e:
-        st.error(f"Error while loading GPX file: {e}")
-else:
-    st.info("Please upload a GPX file to begin.")
+        params = {
+            "max_pause_length_m": st.number_input(
+                "Longueur max de pause (m)", value=DEFAULT_PARAMS["max_pause_length_m"], min_value=0
+            ),
+            "max_pause_descent_m": st.number_input(
+                "Descente max en pause (m)", value=DEFAULT_PARAMS["max_pause_descent_m"], min_value=0
+            ),
+            "start_threshold_slope": st.number_input(
+                "Pente seuil de départ (%)", value=DEFAULT_PARAMS["start_threshold_slope"], min_value=1.0, step=0.1
+            ),
+            }
+        localisation_name_precision = st.number_input(
+            "Précision des noms de lieux", value=localisation_name_precision, min_value=10000, step=5000
+        )
+
+        if st.button("💾 Sauvegarder & Valider"):
+            # Sauvegarde dans la session pour l'utiliser dans l'onglet Analyse
+            st.session_state["params"] = params
+            st.success("Paramètres mis à jour ✅")
+            st.table(pd.DataFrame(params.items(), columns=["Paramètre", "Valeur"]))
+
+    else:
+        st.markdown("Par défaut, les paramètres suivants sont utilisés :")
+        st.subheader("Paramètres par défaut")
+        df_param = pd.DataFrame(DEFAULT_PARAMS.items(), columns=["Paramètre", "Valeur"])
+        df_param.round(1)
+        st.table(df_param)
+
+        params = DEFAULT_PARAMS
+
+with tab_analysis:
+    st.subheader("Analyse des données")
+
+    with st.sidebar:
+
+        # Barre latérale avec les choix
+        option = st.sidebar.radio(
+            "Choisissez une source :",
+            ("Import a GPX file", "Authentification with Strava")
+        )
+
+        if option == "Import a GPX file":
+            uploaded_file = st.file_uploader("Import a GPX file", type=["gpx"])
+
+        elif option == "Authentification with Strava":
+            st.info("🚧 Work in Progress : connexion Strava")
+
+    if option == "Import a GPX file":
+        if uploaded_file is not None:
+            try:
+                route = parser.open_gpx(uploaded_file)
+                st.success("✅ Fichier GPX chargé avec succès !")
+                if len(route.gpx.tracks) > 1:
+                    raise ValueError("Le fichier GPX contient plus d'un tracé. Veuillez fournir un fichier avec un seul tracé.")
+                df = parser.parse_gpx(route)
+                route.df = parser.apply_slope_smoothing(route.df, target_meters=100)
+                stats = parser.compute_stats_gpx(route)
+
+                climbs_df = climb_detector.detect_significant_segments(route.df, kind="climb", **params)
+                descents_df = climb_detector.detect_significant_segments(route.df, kind="descent", **params)
+
+                route.descents_df = descents_df
+                route.climbs_df = climbs_df
+
+                df_with_locations = locator.add_location(route, localisation_name_precision)
+
+                # st.write(stats)
+                st.header("📊 Statistiques du parcours")
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Distance", f"{stats['total_distance_km']:.2f} km")
+                col2.metric("Dénivelé +", f"{stats['elevation_gain']:.0f} m")
+                col3.metric("Dénivelé -", f"{stats['elevation_loss']:.0f} m")
+
+                col4, col5, col6 = st.columns(3)
+                col4.metric("Altitude min", f"{stats['min_elevation']:.1f} m")
+                col5.metric("Altitude max", f"{stats['max_elevation']:.1f} m")
+                col6.metric("Pente moyenne", f"{stats['average_grade']:.1f} %")
+
+                st.header("📍 Carte du parcours")
+                # st.write(df_with_locations)
+                m = plotter.create_route_map(route, color_by_slope=True)
+                st_folium(m, width=900, height=500, returned_objects=[])
+
+                st.header("📈 Profil d'élévation")
+                fig = plotter.display_profile(route)
+                st.plotly_chart(fig)    
+
+                # Création du df d'affichage
+                display_df = pd.DataFrame({
+                    "🏁 Démarrage (km)" : (climbs_df['start_km']).round(2),
+                    "📏 Longueur (km)": (climbs_df['length_m'] / 1000).round(2),
+                    "⛰️ Dénivelé (m)": climbs_df['elev_gain'].round(0),
+                    "📈 Pente moyenne (%)": climbs_df['avg_slope'].round(1),
+                    "🔺 Pente max (%)": [f"{s:.1f}" if s is not None else "-" for s in climbs_df['max_slope']]
+                })
+                display_df.insert(0, "No", range(1, len(display_df) + 1))
+
+                
+                st.subheader("Segments de montée détectés 🚵")
+                st.dataframe(display_df, hide_index=True, use_container_width=True)
+
+                st.subheader("Profil détaillé par segment 🚵")
+                bool_display_each_segment = st.checkbox("Afficher chaque segment", value=False)
+
+                if bool_display_each_segment:
+                    dico_fig = plotter.display_each_segment(route)
+
+                    for i, fig in dico_fig.items():
+                        st.subheader(f"Segment {i+1}")
+                        st.plotly_chart(dico_fig[i], use_container_width=True)
+
+            except Exception as e:
+                st.error(f"Erreur lors du parsing du fichier : {e}")
 
 
-# Summary stats
-total_distance = track_df['km'].max()
-total_climb = track_df['elevation'].diff()
-
-total_climb_pos = total_climb[total_climb > 0].sum()
-total_climb_neg = total_climb[total_climb < 0].sum()
-
-col1, col2, col3 = st.columns(3)
-col1.metric("Distance", f"{total_distance:.2f} km")
-col2.metric("Elevation Gain", f"{total_climb_pos:.0f} m")
-col3.metric("Elevation Loss", f"{total_climb_neg:.0f} m")
-
-# Climbs detection
-climbs_df = gpx_utils.detect_climbs(track_df_merge, slopes_df)
-
-# Map with slopes and climbs
-m = folium.Map(location=[track_df['latitude'].mean(), track_df['longitude'].mean()], zoom_start=13)
-colors = ['black', 'yellow', 'orange', 'orangered', 'maroon', 'darkred', 'purple']
-slopesTable = [lambda x: x < 2, lambda x: (x >= 2) & (x < 4), lambda x: (x >= 4) & (x < 5),
-               lambda x: (x >= 5) & (x < 8), lambda x: (x >= 8) & (x < 10),
-               lambda x: (x >= 10) & (x < 12), lambda x: x >= 12]
-
-# Draw GPX with slope colors
-for seg_id in track_df_merge['segment'].unique():
-    seg_data = track_df_merge[track_df_merge['segment'] == seg_id]
-    slope_val = seg_data['slope'].iloc[0]
-    for idx, func in enumerate(slopesTable):
-        if func(slope_val):
-            color = colors[idx]
-            break
-    coords = list(zip(seg_data['latitude'], seg_data['longitude']))
-    folium.PolyLine(coords, color=color, weight=4).add_to(m)
-
-# Distance markers every 1 km
-km_markers = (
-    track_df.groupby(track_df['km'].round().astype(int))
-    .first()
-    .rename_axis("km_marker")
-    .reset_index()
-)
-for _, row in km_markers.iterrows():
-    folium.Marker(
-        location=(row['latitude'], row['longitude']),
-        icon=folium.DivIcon(html=f"""<div style="font-size: 10pt; color: black;">{int(row['km'])} km</div>""")
-    ).add_to(m)
-
-# Add climbs slopes with annotations
-    #TODO
-
-
-st.subheader("📍 Map view")
-st_folium(m, width=900, height=500)
-
-# Full profile plot
-fig, ax = plt.subplots(figsize=(12, 4))
-fig = util.plot_climb_segment(track_df_merge, places_df, track_df['segment'].min(), track_df['segment'].max())
-st.pyplot(fig)
-
-# Climbs detection
-# climbs_df = gpx_utils.detect_climbs(track_df_merge, slopes_df)
-st.subheader("Detected Climbs")
-for _, climb in climbs_df.iterrows():
-    st.markdown(f"**Length:** {climb['total_length_km']:.2f} km — **Avg slope:** {climb['avg_slope']:.2f}%")
-    fig2, ax2 = plt.subplots(figsize=(12, 4))
-    fig2 = util.plot_climb_segment(track_df_merge, places_df, climb['segment_min'], climb['segment_max'], True)
-    st.pyplot(fig2)
