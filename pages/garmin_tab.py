@@ -20,7 +20,7 @@ def format_garmin_df(df):
     def format_duration(minutes):
         h = int(minutes // 60)
         m = int(minutes % 60)
-        return f"{h}:{m:02d}"
+        return f"{h} h {m:02d} mn "
 
     df_display["duration_minutes"] = df_display["duration_minutes"].apply(format_duration)
 
@@ -46,8 +46,7 @@ def render_garmin_tab():
 
     else:
         garmin = st.session_state["garmin"]
-        st.success(f"Bienvenue {garmin.get_full_name()} ✅")
-        st.success("✅ Connecté à Garmin Connect")
+        st.success(f"✅ Connecté à Garmin Connect, Bienvenue {garmin.get_full_name()} !")
 
         if st.button("Se déconnecter"):
             auth.garmin_logout()
@@ -77,10 +76,13 @@ def render_garmin_tab():
 
             # Filtres
             st.write("### 🎛️ Filtres")
-            min_dist = st.number_input("Distance min (km)", 0.0, 500.0, 0.0, step=1.0)
-            max_dist = st.number_input("Distance max (km)", 0.0, 500.0, 500.0, step=1.0)
-            min_dplus = st.number_input("Dénivelé + min (m)", 0, 10000, 0, step=100)
-            min_duree = st.number_input("Durée min (min)", 0, 10000, 0, step=10)
+            col1, col2 = st.columns(2)
+            with col1:
+                min_dist = st.number_input("Distance minimum (km)", 0.0, None, 0.0, step=1.0)
+                max_dist = st.number_input("Distance maximum (km)", 0.0, None, 500.0, step=1.0)
+            with col2:
+                min_dplus = st.number_input("Dénivelé + minimum (m)", 0, None, 0, step=100)
+                min_duree = st.number_input("Durée minimum en minutes", 0, None, 0, step=10)
 
             df_filtered = df[
                 (df["distance_km"] >= min_dist)
@@ -100,7 +102,8 @@ def render_garmin_tab():
             )
 
             # Bouton pour analyser la sélection
-            selected = edited_df[edited_df["Sélectionner"] == True]
+            selected = df_filtered[edited_df["Sélectionner"] == True]
+
             if not selected.empty and st.button("📥 Analyser la sélection"):
                 try:
                     # On prend le premier sélectionné (tu peux adapter pour multi)
