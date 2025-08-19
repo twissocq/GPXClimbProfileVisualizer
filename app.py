@@ -1,3 +1,4 @@
+import email
 import pandas as pd
 import numpy as np
 import climb_detector as climb_detector
@@ -9,6 +10,9 @@ import util as util
 import streamlit as st
 from streamlit_folium import st_folium
 
+import garminconnect
+
+
 st.set_page_config(layout="wide", page_title="GPX Analyzer 📍")
 
 # ---- Paramètres par défaut ----
@@ -18,6 +22,8 @@ DEFAULT_PARAMS = {
     "start_threshold_slope": 2.0
 }
 localisation_name_precision = 10000
+window_m = 100
+
 st.title("GPX Climb Analyzer")
 
 tab_params, tab_analysis = st.tabs(["⚙️ Paramètres avancés", "📈 Analyse"])
@@ -40,19 +46,28 @@ with tab_params:
             ),
             }
         localisation_name_precision = st.number_input(
-            "Précision des noms de lieux", value=localisation_name_precision, min_value=10000, step=5000
+            "Précision des noms de lieux", value=localisation_name_precision, min_value=10000, step=1
+        )
+        window_m = st.number_input(
+            "Précision du lissage pour le calcul de la pente", value=window_m, min_value=1, step=1
         )
 
         if st.button("💾 Sauvegarder & Valider"):
             # Sauvegarde dans la session pour l'utiliser dans l'onglet Analyse
             st.session_state["params"] = params
+            st.session_state["localisation_name_precision"] = localisation_name_precision
+            st.session_state["window_m"] = window_m
             st.success("Paramètres mis à jour ✅")
             st.table(pd.DataFrame(params.items(), columns=["Paramètre", "Valeur"]))
 
     else:
         st.markdown("Par défaut, les paramètres suivants sont utilisés :")
         st.subheader("Paramètres par défaut")
-        df_param = pd.DataFrame(DEFAULT_PARAMS.items(), columns=["Paramètre", "Valeur"])
+        display_param = DEFAULT_PARAMS.copy()
+        display_param["localisation_name_precision"] = localisation_name_precision
+        display_param["window_m"] = window_m
+
+        df_param = pd.DataFrame(display_param.items(), columns=["Paramètre", "Valeur"])
         df_param.round(1)
         st.table(df_param)
 
@@ -66,7 +81,7 @@ with tab_analysis:
         # Barre latérale avec les choix
         option = st.sidebar.radio(
             "Choisissez une source :",
-            ("Import a GPX file", "Authentification with Strava")
+            ("Import a GPX file", "Authentification with Strava", "Authentification with Garmin")
         )
 
         if option == "Import a GPX file":
@@ -74,6 +89,16 @@ with tab_analysis:
 
         elif option == "Authentification with Strava":
             st.info("🚧 Work in Progress : connexion Strava")
+
+        elif option == "Authentification with Garmin":
+            email = st.text_input("Enter login")
+            password = st.text_input("Enter a password", type="password")
+            garmin = garminconnect.Garmin(email, password)
+            garmin.login()
+
+            st.write(f"Bienvenue {garmin.display_name} !")
+            st.info("🚧 Work in Progress : connexion Garmin")
+
 
     if option == "Import a GPX file":
         if uploaded_file is not None:
@@ -133,7 +158,7 @@ with tab_analysis:
                 bool_display_each_segment = st.checkbox("Afficher chaque segment", value=False)
 
                 if bool_display_each_segment:
-                    dico_fig = plotter.display_each_segment(route)
+                    dico_fig = plotter.display_each_segment(route, window_m)
 
                     for i, fig in dico_fig.items():
                         st.subheader(f"Segment {i+1}")

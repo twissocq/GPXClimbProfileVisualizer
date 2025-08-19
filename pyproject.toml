@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "folium>=0.20.0",
+    "garminconnect>=0.2.28",
     "geopy>=2.4.1",
     "gpxpy>=1.6.2",
     "haversine>=2.9.0",
