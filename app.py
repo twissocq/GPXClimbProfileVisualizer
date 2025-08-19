@@ -1,4 +1,3 @@
-import email
 import pandas as pd
 import numpy as np
 import climb_detector as climb_detector
@@ -10,8 +9,7 @@ import util as util
 import streamlit as st
 from streamlit_folium import st_folium
 
-import garminconnect
-
+import authentification as auth
 
 st.set_page_config(layout="wide", page_title="GPX Analyzer 📍")
 
@@ -91,13 +89,14 @@ with tab_analysis:
             st.info("🚧 Work in Progress : connexion Strava")
 
         elif option == "Authentification with Garmin":
-            email = st.text_input("Enter login")
-            password = st.text_input("Enter a password", type="password")
-            garmin = garminconnect.Garmin(email, password)
-            garmin.login()
+            auth.garmin_auth()
+            # email = st.text_input("Enter login")
+            # password = st.text_input("Enter a password", type="password")
+            # garmin = garminconnect.Garmin(email, password)
+            # garmin.login()
 
-            st.write(f"Bienvenue {garmin.display_name} !")
-            st.info("🚧 Work in Progress : connexion Garmin")
+            # st.write(f"Bienvenue {garmin.display_name} !")
+            # st.info("🚧 Work in Progress : connexion Garmin")
 
 
     if option == "Import a GPX file":
@@ -140,29 +139,34 @@ with tab_analysis:
                 fig = plotter.display_profile(route)
                 st.plotly_chart(fig)    
 
-                # Création du df d'affichage
-                display_df = pd.DataFrame({
-                    "🏁 Démarrage (km)" : (climbs_df['start_km']).round(2),
-                    "📏 Longueur (km)": (climbs_df['length_m'] / 1000).round(2),
-                    "⛰️ Dénivelé (m)": climbs_df['elev_gain'].round(0),
-                    "📈 Pente moyenne (%)": climbs_df['avg_slope'].round(1),
-                    "🔺 Pente max (%)": [f"{s:.1f}" if s is not None else "-" for s in climbs_df['max_slope']]
-                })
-                display_df.insert(0, "No", range(1, len(display_df) + 1))
-
-                
                 st.subheader("Segments de montée détectés 🚵")
-                st.dataframe(display_df, hide_index=True, use_container_width=True)
+                if climbs_df.empty:
+                    st.warning("Aucun segment de montée détecté.")
+                else:
+                    st.success("Segments de montée détectés avec succès.")
 
-                st.subheader("Profil détaillé par segment 🚵")
-                bool_display_each_segment = st.checkbox("Afficher chaque segment", value=False)
+                    # Création du df d'affichage
+                    display_df = pd.DataFrame({
+                        "🏁 Démarrage (km)" : (climbs_df['start_km']).round(2),
+                        "📏 Longueur (km)": (climbs_df['length_m'] / 1000).round(2),
+                        "⛰️ Dénivelé (m)": climbs_df['elev_gain'].round(0),
+                        "📈 Pente moyenne (%)": climbs_df['avg_slope'].round(1),
+                        "🔺 Pente max (%)": [f"{s:.1f}" if s is not None else "-" for s in climbs_df['max_slope']]
+                    })
+                    display_df.insert(0, "No", range(1, len(display_df) + 1))
 
-                if bool_display_each_segment:
-                    dico_fig = plotter.display_each_segment(route, window_m)
+                    
+                    st.dataframe(display_df, hide_index=True, use_container_width=True)
 
-                    for i, fig in dico_fig.items():
-                        st.subheader(f"Segment {i+1}")
-                        st.plotly_chart(dico_fig[i], use_container_width=True)
+                    st.subheader("Profil détaillé par segment 🚵")
+                    bool_display_each_segment = st.checkbox("Afficher chaque segment", value=False)
+
+                    if bool_display_each_segment:
+                        dico_fig = plotter.display_each_segment(route, window_m)
+
+                        for i, fig in dico_fig.items():
+                            st.subheader(f"Segment {i+1}")
+                            st.plotly_chart(dico_fig[i], use_container_width=True)
 
             except Exception as e:
                 st.error(f"Erreur lors du parsing du fichier : {e}")
