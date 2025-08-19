@@ -99,8 +99,10 @@ def _validate_and_append_segment(
 
     if kind == "climb":
         gain = segment_df[segment_df["ele"].diff() > 0]["ele"].diff().sum()
+        max_slope = segment_df["plot_grade"].rolling(window=5).mean().max()
     else:  # descent
         gain = abs(segment_df[segment_df["ele"].diff() < 0]["ele"].diff().sum())
+        max_slope = segment_df["plot_grade"].rolling(window=5).mean().min()
 
     if length > min_length and gain > min_gain:
         avg_slope = (gain / length) * 100 if length > 0 else 0
@@ -114,6 +116,7 @@ def _validate_and_append_segment(
                 "elev_gain" if kind == "climb" else "elev_loss": gain,
                 "length_m": length,
                 "avg_slope": avg_slope if kind == "climb" else -avg_slope,
+                "max_slope" : max_slope if kind == "climb" else -max_slope,
                 "start_idx": start_idx,
                 "end_idx": end_idx,
             }

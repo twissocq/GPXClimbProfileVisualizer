@@ -183,7 +183,7 @@ def getcolor(grade:int) -> str:
     """Return a color based on the slope grade in # format."""
     match grade:
         case _ if -2 <= grade < 2:
-            return "#FFFFFF"  # white
+            return "#999999"  # grey
         case _ if 2 <= grade < 4:
             return "#75f60c"  # green
         case _ if 4 <= grade < 6:
@@ -195,7 +195,7 @@ def getcolor(grade:int) -> str:
         case _ if 10 <= grade < 12:
             return "#800080"  # purple
         case _ if grade >= 12:
-            return "#444444"  # black
+            return "#000000"  # black
         # case _ if -4 <= grade < -2:
         #     return "#ADD8E6"  # light blue
         # case _ if -10 <= grade < -4:
@@ -203,10 +203,10 @@ def getcolor(grade:int) -> str:
         # case _ if grade < -10:
         #     return "#4682B4"  # steel blue
         case _ if -4 <= grade < -2:
-            return "#F5F5DC"  # beige
+            return "#80807C"  # beige
         case _ if -10 <= grade < -4:
-            return "#FFE4C4"  # bisque
+            return "#6E6E6B"  # bisque
         case _ if grade < -10:
-            return "#CAA473"  # burlywood
+            return "#4D4D4A"  # burlywood
 
         

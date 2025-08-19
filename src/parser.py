@@ -11,8 +11,13 @@ from route import GPXData
 def open_gpx(file: str) -> GPXData:
     """Parse GPX and return gpx object."""
     try:
-        gpx_file = open(file, "r")
-        gpx = gpxpy.parse(gpx_file)
+        if isinstance(file, str):
+            # Case: file path
+            with open(file, "r") as gpx_file:
+                gpx = gpxpy.parse(gpx_file)
+        else:
+            # Case: Streamlit UploadedFile
+            gpx = gpxpy.parse(file)
     except Exception as e:
         raise ValueError(f"Error parsing GPX: {e}")
     
