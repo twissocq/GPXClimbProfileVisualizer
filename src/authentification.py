@@ -11,16 +11,16 @@ def garmin_auth():
     with st.form("auth_form"):
         login = st.text_input("📧 Identifiant Garmin")
         password = st.text_input("🔒 Mot de passe", type="password")
-        st.form_submit_button("Se connecter")
+        submitted  = st.form_submit_button("Se connecter")
 
-    if st.button("Se connecter"):
+    if submitted: #st.button("Se connecter"):
         try:
             garmin = Garmin(login, password)
             garmin.login()
             
             # Sauvegarder la session si besoin
             st.session_state["garmin"] = garmin
-            
+            st.rerun()
             st.success(f"Bienvenue {garmin.get_full_name()} ✅")
 
         except GarminConnectAuthenticationError:

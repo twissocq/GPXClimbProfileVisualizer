@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
 import io
-import gpxpy
-from src.parser import open_gpx, GPXData
+from src.parser import open_gpx
 import authentification as auth
 
 
@@ -50,7 +49,7 @@ def render_garmin_tab():
 
         if st.button("Se déconnecter"):
             auth.garmin_logout()
-
+            st.rerun()
         # Sélecteurs de dates
         st.write("### 📅 Sélection des activités")
         col1, col2 = st.columns(2)
@@ -65,7 +64,7 @@ def render_garmin_tab():
             except Exception as e:
                 st.error(f"Erreur récupération activités : {e}")
 
-        if "activities" in st.session_state:
+        if ("activities" in st.session_state) and (len(activities)>0):
             df = pd.DataFrame(st.session_state["activities"])
 
             # Normalisation colonnes
@@ -109,7 +108,6 @@ def render_garmin_tab():
                     # On prend le premier sélectionné (tu peux adapter pour multi)
                     act_id = selected.iloc[0]["activityId"]
                     raw_bytes = garmin.download_activity(act_id, garmin.ActivityDownloadFormat.GPX)
-                    gpx = gpxpy.parse(io.BytesIO(raw_bytes))
                     route = open_gpx(io.BytesIO(raw_bytes))
                     st.session_state["route"] = route
                     st.success(f"✅ Activité {act_id} envoyée dans l’onglet Analyse GPX !")
