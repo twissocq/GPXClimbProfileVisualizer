@@ -64,7 +64,7 @@ def render_garmin_tab():
             except Exception as e:
                 st.error(f"Erreur récupération activités : {e}")
 
-        if ("activities" in st.session_state) and (len(activities)>0):
+        if ("activities" in st.session_state):# and (len(activities)>0):
             df = pd.DataFrame(st.session_state["activities"])
 
             # Normalisation colonnes
