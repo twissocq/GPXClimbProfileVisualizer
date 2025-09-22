@@ -79,6 +79,7 @@ with tab_analyse:
                 route = parser.open_gpx(uploaded_file)
                 st.session_state["route"] = route
                 st.success("✅ GPX chargé avec succès !")
+                st.rerun()
             except Exception as e:
                 st.error(f"Erreur lors du parsing du fichier : {e}")
     else:

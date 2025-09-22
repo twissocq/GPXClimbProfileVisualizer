@@ -12,6 +12,7 @@ def getLocationFromCoords(latitude, longitude) -> dict:
     """
     Reverse geocoding: GPS → location dict
     """
+    return None
     coord = (round(latitude, 10), round(longitude, 10))
     if coord in _cache_reverse:
         return getNamefromProperties(_cache_reverse[coord])
@@ -33,6 +34,9 @@ def getNamefromProperties(location:dict) -> str:
     """
     Extract the name from the properties dictionary.
     """
+    if location is None:
+        return ""
+    
     name = location["properties"]["district"] if "district" in location["properties"] else location["properties"]["city"] if "city" in location["properties"] else None
     city = location["properties"]["city"] if "city" in location["properties"] else None
 
